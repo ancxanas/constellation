@@ -1,0 +1,154 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  accounts      Account[]
+  sessions      Session[]
+  boards        Board[]   @relation("BoardOwner")
+  boardMembers  BoardMember[]
+  tasks         Task[]    @relation("TaskAssignee")
+  comments      Comment[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  @@unique([identifier, token])
+}
+
+model Board {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  ownerId     String
+  owner       User     @relation("BoardOwner", fields: [ownerId], references: [id])
+  members     BoardMember[]
+  columns     Column[] @relation("BoardColumns")
+  tasks       Task[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BoardMember {
+  id        String    @id @default(cuid())
+  boardId   String
+  userId    String
+  role      BoardRole @default(MEMBER)
+  board     Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  @@unique([boardId, userId])
+}
+
+enum BoardRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Column {
+  id        String   @id @default(cuid())
+  title     String
+  order     Int
+  boardId   String
+  board     Board    @relation("BoardColumns", fields: [boardId], references: [id], onDelete: Cascade)
+  tasks     Task[]   @relation("ColumnTasks")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  order       Int
+  columnId    String
+  column      Column       @relation("ColumnTasks", fields: [columnId], references: [id], onDelete: Cascade)
+  boardId     String
+  board       Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  assigneeId  String?
+  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  tags        Tag[]
+  comments    Comment[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  BACKLOG
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Tag {
+  id     String @id @default(cuid())
+  name   String
+  color  String @default("#3b82f6")
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
