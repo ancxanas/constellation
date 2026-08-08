@@ -1,7 +1,5 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
-
 import { prisma } from "@/lib/prisma"
 import { requireUser } from "@/lib/session"
 import { canManageBoard } from "@/lib/permissions"
@@ -34,7 +32,6 @@ export async function createBoardAction(
     },
   })
 
-  revalidatePath("/boards")
   return { id: board.id }
 }
 
@@ -57,8 +54,6 @@ export async function updateBoardAction(
     data: { title, description: description?.trim() || null },
   })
 
-  revalidatePath(`/boards/${boardId}`)
-  revalidatePath("/boards")
   return {}
 }
 
@@ -74,7 +69,6 @@ export async function deleteBoardAction(boardId: string): Promise<ActionResponse
   }
 
   await prisma.board.delete({ where: { id: boardId } })
-  revalidatePath("/boards")
   return {}
 }
 
@@ -95,7 +89,6 @@ export async function addColumnAction(
     data: { boardId, title: title.trim() || "New column", order },
   })
 
-  revalidatePath(`/boards/${boardId}`)
   return { id: column.id }
 }
 
@@ -118,7 +111,6 @@ export async function renameColumnAction(
     data: { title: title.trim() || "Untitled" },
   })
 
-  revalidatePath(`/boards/${column.boardId}`)
   return {}
 }
 
@@ -134,7 +126,6 @@ export async function deleteColumnAction(columnId: string): Promise<ActionRespon
   if (!canManage) return { error: "You don't have permission to delete columns" }
 
   await prisma.column.delete({ where: { id: columnId } })
-  revalidatePath(`/boards/${column.boardId}`)
   return {}
 }
 
@@ -157,6 +148,5 @@ export async function reorderColumnsAction(input: {
     )
   }
 
-  revalidatePath(`/boards/${input.boardId}`)
   return {}
 }

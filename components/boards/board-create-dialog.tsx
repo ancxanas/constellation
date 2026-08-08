@@ -51,7 +51,6 @@ export function BoardCreateDialog({
     onOpenChange(false)
     queryClient.invalidateQueries({ queryKey: ["boards"] })
     router.push(`/boards/${result.id}`)
-    router.refresh()
   }
 
   return (

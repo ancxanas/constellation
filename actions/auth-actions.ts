@@ -18,14 +18,17 @@ export async function registerAction(
   }
 
   const { name, email, password } = parsed.data
-  const existing = await prisma.user.findUnique({ where: { email } })
+  const normalizedEmail = email.trim().toLowerCase()
+  const existing = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  })
   if (existing) {
     return { error: "An account with this email already exists" }
   }
 
   const hashed = await bcrypt.hash(password, 10)
   await prisma.user.create({
-    data: { name, email, password: hashed },
+    data: { name, email: normalizedEmail, password: hashed },
   })
 
   return {}

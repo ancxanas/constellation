@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation"
 import { Pencil, Settings, Trash2 } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
 import { deleteBoardAction, updateBoardAction } from "@/actions/board-actions"
+import { useBoard } from "@/hooks/use-tasks"
+import { initials } from "@/lib/utils"
 import { boardSchema, type BoardValues } from "@/lib/zod-schemas"
 import type { BoardDetailDTO, BoardRole } from "@/lib/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -44,6 +47,11 @@ export function BoardHeader({
   myRole: BoardRole
 }) {
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const { data: liveBoard } = useBoard(board.id, board)
+  const title = liveBoard?.title ?? board.title
+  const description = liveBoard?.description ?? board.description
+  const members = liveBoard?.members ?? board.members
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -71,6 +79,7 @@ export function BoardHeader({
       return
     }
     toast.success("Board updated")
+    queryClient.invalidateQueries({ queryKey: ["boards", board.id] })
     setEditOpen(false)
   }
 
@@ -83,27 +92,25 @@ export function BoardHeader({
       return
     }
     toast.success("Board deleted")
+    queryClient.invalidateQueries({ queryKey: ["boards"] })
     router.push("/boards")
-    router.refresh()
   }
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <h1 className="truncate font-heading text-xl font-bold">
-            {board.title}
-          </h1>
-          {board.description && (
+          <h1 className="truncate font-heading text-xl font-bold">{title}</h1>
+          {description && (
             <p className="line-clamp-2 text-sm text-muted-foreground">
-              {board.description}
+              {description}
             </p>
           )}
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
           <div className="hidden -space-x-2 sm:flex">
-            {board.members.slice(0, 4).map((member) => (
+            {members.slice(0, 4).map((member) => (
               <Avatar
                 key={member.id}
                 className="size-7 border-2 border-background"
@@ -113,29 +120,29 @@ export function BoardHeader({
                   alt={member.user.name ?? ""}
                 />
                 <AvatarFallback className="text-[9px]">
-                  {(member.user.name || member.user.email || "?")
-                    .slice(0, 2)
-                    .toUpperCase()}
+                  {initials(member.user.name, member.user.email)}
                 </AvatarFallback>
               </Avatar>
             ))}
-            {board.members.length > 4 && (
+            {members.length > 4 && (
               <div className="flex size-7 items-center justify-center rounded-full border-2 border-background bg-muted text-[9px] text-muted-foreground">
-                +{board.members.length - 4}
+                +{members.length - 4}
               </div>
             )}
           </div>
 
           <MembersDialog
             boardId={board.id}
-            members={board.members}
+            members={members}
             currentUserId={currentUserId}
             myRole={myRole}
           />
 
           {canEdit && (
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" />}>
+              <DropdownMenuTrigger
+                render={<Button variant="ghost" size="icon-sm" />}
+              >
                 <Settings className="size-4" />
                 <span className="sr-only">Board settings</span>
               </DropdownMenuTrigger>

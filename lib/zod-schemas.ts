@@ -10,7 +10,10 @@ export const registerSchema = z
   .object({
     name: z.string().trim().min(1, "Enter your name").max(80),
     email: z.string().email("Enter a valid email"),
-    password: z.string().min(8, "Password must be at least 8 characters").max(128),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .max(128),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -19,7 +22,12 @@ export const registerSchema = z
   })
 export type RegisterValues = z.infer<typeof registerSchema>
 
-export const taskStatusSchema = z.enum(["TODO", "IN_PROGRESS", "DONE", "BACKLOG"])
+export const taskStatusSchema = z.enum([
+  "TODO",
+  "IN_PROGRESS",
+  "DONE",
+  "BACKLOG",
+])
 export const taskPrioritySchema = z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"])
 
 export const boardSchema = z.object({
@@ -38,6 +46,9 @@ export const taskSchema = z.object({
   columnId: z.string().min(1),
 })
 export type TaskValues = z.infer<typeof taskSchema>
+
+export const taskPatchSchema = taskSchema.partial()
+export type TaskPatchValues = z.infer<typeof taskPatchSchema>
 
 export const commentSchema = z.object({
   content: z.string().trim().min(1, "Write a comment").max(2000),

@@ -1,12 +1,9 @@
 import { prisma } from "@/lib/prisma"
-import type {
-  BoardDetailDTO,
-  BoardSummaryDTO,
-  CommentDTO,
-} from "@/lib/types"
+import type { BoardDetailDTO, BoardSummaryDTO, CommentDTO } from "@/lib/types"
 
 export async function getUserBoards(
-  userId: string
+  userId: string,
+  take?: number
 ): Promise<BoardSummaryDTO[]> {
   const boards = await prisma.board.findMany({
     where: { OR: [{ ownerId: userId }, { members: { some: { userId } } }] },
@@ -15,6 +12,7 @@ export async function getUserBoards(
       owner: { select: { id: true, name: true, email: true, image: true } },
     },
     orderBy: { updatedAt: "desc" },
+    ...(take ? { take } : {}),
   })
 
   return boards.map((board) => ({

@@ -5,6 +5,7 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 
 import type { TaskDTO } from "@/lib/types"
+import { initials } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { TaskDueDate } from "@/components/tasks/task-due-date"
 import { TaskPriorityBadge } from "@/components/tasks/task-priority-badge"
@@ -40,7 +41,17 @@ export function KanbanTaskCard({
       }}
       {...attributes}
       {...listeners}
-      onClick={onClick}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-label={`Open task ${task.title}`}
+      onClick={disabled ? undefined : onClick}
+      onKeyDown={(e) => {
+        if (disabled) return
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onClick()
+        }
+      }}
       className={[
         "group cursor-pointer touch-none rounded-lg border border-foreground/10 bg-card p-3",
         "shadow-sm transition-shadow hover:border-foreground/20 hover:shadow-md",
@@ -48,7 +59,7 @@ export function KanbanTaskCard({
       ].join(" ")}
     >
       <div className="space-y-2">
-        <p className="text-sm font-medium leading-snug">{task.title}</p>
+        <p className="text-sm leading-snug font-medium">{task.title}</p>
 
         {task.tags.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -66,7 +77,9 @@ export function KanbanTaskCard({
 
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <TaskDueDate dueDate={task.dueDate ? new Date(task.dueDate) : null} />
+            <TaskDueDate
+              dueDate={task.dueDate ? new Date(task.dueDate) : null}
+            />
             {task.commentsCount > 0 && (
               <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                 <MessageSquare className="size-3" />
@@ -81,9 +94,7 @@ export function KanbanTaskCard({
                 alt={task.assignee.name ?? ""}
               />
               <AvatarFallback className="text-[8px]">
-                {(task.assignee.name || task.assignee.email || "?")
-                  .slice(0, 2)
-                  .toUpperCase()}
+                {initials(task.assignee.name, task.assignee.email)}
               </AvatarFallback>
             </Avatar>
           )}

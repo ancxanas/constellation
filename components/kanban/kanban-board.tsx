@@ -28,9 +28,13 @@ import {
   reorderColumnsAction,
 } from "@/actions/board-actions"
 import { reorderTasksAction } from "@/actions/task-actions"
+import { useBoard } from "@/hooks/use-tasks"
 import { useBoardStore } from "@/stores/board-store"
-import type { ColumnDTO, MemberDTO, TaskDTO } from "@/lib/types"
-import { BoardFilters, type TaskFilters } from "@/components/kanban/board-filters"
+import type { BoardDetailDTO, ColumnDTO, MemberDTO, TaskDTO } from "@/lib/types"
+import {
+  BoardFilters,
+  type TaskFilters,
+} from "@/components/kanban/board-filters"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import {
@@ -66,9 +70,7 @@ function taskMatches(task: TaskDTO, filters: TaskFilters) {
   const query = filters.query.trim().toLowerCase()
   if (query) {
     const inTitle = task.title.toLowerCase().includes(query)
-    const inDescription = (task.description ?? "")
-      .toLowerCase()
-      .includes(query)
+    const inDescription = (task.description ?? "").toLowerCase().includes(query)
     if (!inTitle && !inDescription) return false
   }
   return true
@@ -76,16 +78,17 @@ function taskMatches(task: TaskDTO, filters: TaskFilters) {
 
 export function KanbanBoard({
   boardId,
-  initialColumns,
+  board,
   canEdit,
   members,
 }: {
   boardId: string
-  initialColumns: ColumnDTO[]
+  board: BoardDetailDTO
   canEdit: boolean
   members: MemberDTO[]
 }) {
   const queryClient = useQueryClient()
+  const { data: liveBoard } = useBoard(boardId, board)
   const openNewTask = useBoardStore((state) => state.openNewTask)
   const openTask = useBoardStore((state) => state.openTask)
 
@@ -111,7 +114,8 @@ export function KanbanBoard({
   const [addingColumn, setAddingColumn] = useState(false)
   const snapshotRef = useRef<ColumnDTO[]>([])
 
-  const columns = dragColumns ?? initialColumns
+  const columns = dragColumns ?? liveBoard?.columns ?? board.columns
+  const liveMembers = liveBoard?.members ?? members
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -121,9 +125,16 @@ export function KanbanBoard({
     queryClient.invalidateQueries({ queryKey: ["boards", boardId] })
   }
 
+  function applyColumnsToCache(cols: ColumnDTO[]) {
+    queryClient.setQueryData<BoardDetailDTO>(["boards", boardId], (old) => {
+      if (!old) return old
+      return { ...old, columns: cols }
+    })
+  }
+
   function handleDragStart(event: DragStartEvent) {
     const id = String(event.active.id)
-    const snapshot = initialColumns.map((column) => ({
+    const snapshot = columns.map((column) => ({
       ...column,
       tasks: [...column.tasks],
     }))
@@ -131,7 +142,7 @@ export function KanbanBoard({
     setDragColumns(snapshot)
     if (id.startsWith("task:")) {
       const taskId = id.replace("task:", "")
-      setActiveTask(findTask(initialColumns, taskId) ?? null)
+      setActiveTask(findTask(columns, taskId) ?? null)
     } else if (id.startsWith("column:")) {
       setActiveColumnId(id.replace("column:", ""))
     }
@@ -175,7 +186,10 @@ export function KanbanBoard({
         if (!task) return cols
         return cols.map((column) => {
           if (column.id === source.id) {
-            return { ...column, tasks: column.tasks.filter((t) => t.id !== activeTaskId) }
+            return {
+              ...column,
+              tasks: column.tasks.filter((t) => t.id !== activeTaskId),
+            }
           }
           if (column.id === targetColumnId) {
             return { ...column, tasks: [...column.tasks, task] }
@@ -215,7 +229,10 @@ export function KanbanBoard({
       newTasks.splice(overIndex, 0, task)
       return cols.map((column) => {
         if (column.id === source.id) {
-          return { ...column, tasks: column.tasks.filter((t) => t.id !== activeTaskId) }
+          return {
+            ...column,
+            tasks: column.tasks.filter((t) => t.id !== activeTaskId),
+          }
         }
         if (column.id === target.id) {
           return { ...column, tasks: newTasks }
@@ -235,6 +252,7 @@ export function KanbanBoard({
       }))
       const result = await reorderColumnsAction({ boardId, updates })
       if (result.error) toast.error(result.error)
+      applyColumnsToCache(columns)
       invalidate()
     } else if (activeId.startsWith("task:")) {
       const previous = new Map<string, { columnId: string; order: number }>()
@@ -260,6 +278,7 @@ export function KanbanBoard({
         const result = await reorderTasksAction({ boardId, updates })
         if (result.error) toast.error(result.error)
       }
+      applyColumnsToCache(columns)
       invalidate()
     }
 
@@ -311,7 +330,7 @@ export function KanbanBoard({
   return (
     <div className="flex flex-col gap-4">
       <BoardFilters
-        members={members}
+        members={liveMembers}
         value={filters}
         onChange={setFilters}
       />

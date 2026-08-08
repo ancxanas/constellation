@@ -4,7 +4,7 @@ import { useState } from "react"
 import { CalendarDays, Plus, X } from "lucide-react"
 import { format } from "date-fns"
 
-import type { MemberDTO, TagDTO, TaskPriority, TaskStatus } from "@/lib/types"
+import type { MemberDTO, TagDTO, TaskPriority, TaskStatus, UserDTO } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
@@ -86,16 +86,28 @@ export function PrioritySelect({
 export function AssigneeSelect({
   value,
   members,
+  assignee,
   onChange,
 }: {
   value: string | null
   members: MemberDTO[]
+  assignee?: UserDTO | null
   onChange: (value: string | null) => void
 }) {
+  const selected = value
+    ? members.find((member) => member.user.id === value) ?? null
+    : null
+  const displayName =
+    selected?.user.name ||
+    selected?.user.email ||
+    assignee?.name ||
+    assignee?.email ||
+    null
+
   return (
     <Select value={value ?? ""} onValueChange={(v) => onChange(v || null)}>
       <SelectTrigger className="w-full">
-        <SelectValue placeholder="Unassigned" />
+        <SelectValue placeholder="Unassigned">{displayName}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="">Unassigned</SelectItem>

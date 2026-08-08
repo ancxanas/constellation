@@ -7,6 +7,8 @@ import { useQueryClient } from "@tanstack/react-query"
 
 import { addCommentAction, deleteCommentAction } from "@/actions/task-actions"
 import { useComments } from "@/hooks/use-tasks"
+import { initials } from "@/lib/utils"
+import type { BoardDetailDTO } from "@/lib/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -26,9 +28,28 @@ export function TaskComments({
   const [content, setContent] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
-  function invalidate() {
+  function refreshComments(delta: number) {
     queryClient.invalidateQueries({ queryKey: ["comments", taskId] })
-    queryClient.invalidateQueries({ queryKey: ["boards", boardId] })
+    if (delta !== 0) {
+      queryClient.setQueryData<BoardDetailDTO>(["boards", boardId], (old) =>
+        old
+          ? {
+              ...old,
+              columns: old.columns.map((column) => ({
+                ...column,
+                tasks: column.tasks.map((task) =>
+                  task.id === taskId
+                    ? {
+                        ...task,
+                        commentsCount: Math.max(0, task.commentsCount + delta),
+                      }
+                    : task
+                ),
+              })),
+            }
+          : old
+      )
+    }
   }
 
   async function submit() {
@@ -41,7 +62,7 @@ export function TaskComments({
       return
     }
     setContent("")
-    invalidate()
+    refreshComments(1)
   }
 
   async function remove(commentId: string) {
@@ -50,7 +71,7 @@ export function TaskComments({
       toast.error(result.error)
       return
     }
-    invalidate()
+    refreshComments(-1)
   }
 
   return (
@@ -69,9 +90,7 @@ export function TaskComments({
                     alt={comment.author.name ?? ""}
                   />
                   <AvatarFallback className="text-[8px]">
-                    {(comment.author.name || comment.author.email || "?")
-                      .slice(0, 2)
-                      .toUpperCase()}
+                    {initials(comment.author.name, comment.author.email)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1 rounded-md bg-muted/60 px-3 py-2">

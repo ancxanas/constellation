@@ -5,10 +5,8 @@ import { getBoardDetail } from "@/lib/queries"
 import { getBoardRole } from "@/lib/permissions"
 import { BoardHeader } from "@/components/boards/board-header"
 import { KanbanBoard } from "@/components/kanban/kanban-board"
-import { KanbanBoardSkeleton } from "@/components/shared/loading-skeleton"
 import { NewTaskDialog } from "@/components/tasks/new-task-dialog"
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog"
-import { Suspense } from "react"
 
 export default async function BoardPage({
   params,
@@ -32,14 +30,12 @@ export default async function BoardPage({
         currentUserId={user.id}
         myRole={myRole ?? "MEMBER"}
       />
-      <Suspense fallback={<KanbanBoardSkeleton />}>
-        <KanbanBoard
-          boardId={board.id}
-          initialColumns={board.columns}
-          canEdit={canEdit}
-          members={board.members}
-        />
-      </Suspense>
+      <KanbanBoard
+        boardId={board.id}
+        board={board}
+        canEdit={canEdit}
+        members={board.members}
+      />
       <NewTaskDialog boardId={board.id} members={board.members} />
       <TaskDetailDialog
         boardId={board.id}

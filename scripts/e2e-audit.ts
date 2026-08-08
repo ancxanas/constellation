@@ -1,4 +1,4 @@
-import { chromium } from "playwright"
+import { chromium, type Locator, type Page } from "playwright"
 
 const BASE = "http://localhost:3000"
 const DEMO = { email: "demo@constellation.app", password: "password123" }
@@ -24,7 +24,7 @@ async function step(name: string, fn: () => Promise<void>) {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-async function login(page: any, email: string, password: string) {
+async function login(page: Page, email: string, password: string) {
   await page.goto(`${BASE}/login`, { waitUntil: "networkidle" })
   await page.locator("#email").fill(email)
   await page.locator("#password").fill(password)
@@ -33,37 +33,51 @@ async function login(page: any, email: string, password: string) {
   await wait(800)
 }
 
-async function signOut(page: any) {
+async function signOut(page: Page) {
   await page.goto(`${BASE}/boards`, { waitUntil: "networkidle" })
   await wait(600)
-  await page.locator("aside [data-slot='dropdown-menu-trigger']").first().click()
+  await page
+    .locator("aside [data-slot='dropdown-menu-trigger']")
+    .first()
+    .click()
   await wait(500)
   await page.getByRole("menuitem", { name: "Sign out" }).click()
   await page.waitForURL(`${BASE}/login`, { timeout: 15000 })
   await wait(500)
 }
 
-async function selectByLabel(page: any, dialogScope: any, label: string, option: string) {
-  const box = dialogScope.locator(".space-y-2").filter({ has: page.locator(`label:text-is("${label}")`) }).first()
+async function selectByLabel(
+  page: Page,
+  dialogScope: Locator,
+  label: string,
+  option: string
+) {
+  const box = dialogScope
+    .locator(".space-y-2")
+    .filter({ has: page.locator(`label:text-is("${label}")`) })
+    .first()
   await box.locator('[data-slot="select-trigger"]').click()
   await wait(400)
-  await page.locator('[data-slot="select-item"]').filter({ hasText: option }).click()
+  await page
+    .locator('[data-slot="select-item"]')
+    .filter({ hasText: option })
+    .click()
   await wait(400)
 }
 
-function column(page: any, colTitle: string) {
+function column(page: Page, colTitle: string) {
   return page
     .locator("div.w-72")
     .filter({ has: page.locator("span.truncate", { hasText: colTitle }) })
     .first()
 }
 
-async function reveal(page: any, loc: any) {
+async function reveal(page: Page, loc: Locator) {
   await loc.scrollIntoViewIfNeeded()
   await wait(200)
 }
 
-async function openColumnMenu(page: any, colTitle: string) {
+async function openColumnMenu(page: Page, colTitle: string) {
   const col = column(page, colTitle)
   await reveal(page, col)
   await col.locator('button[data-slot="dropdown-menu-trigger"]').first().click()
@@ -72,9 +86,13 @@ async function openColumnMenu(page: any, colTitle: string) {
 
 async function main() {
   const browser = await chromium.launch({ headless: true })
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const ctx = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+  })
   const page = await ctx.newPage()
-  page.on("pageerror", (e) => errs.push("[PAGEERROR] " + (e.stack || e.message).slice(0, 300)))
+  page.on("pageerror", (e) =>
+    errs.push("[PAGEERROR] " + (e.stack || e.message).slice(0, 300))
+  )
   page.on("console", (m) => {
     if (m.type() === "error") errs.push("[CONSOLE] " + m.text().slice(0, 300))
   })
@@ -92,7 +110,8 @@ async function main() {
     await page.locator('button[type="submit"]').click()
     await wait(1500)
     const body = await page.locator("body").innerText()
-    if (!body.includes("Invalid email or password")) throw new Error("no error text shown")
+    if (!body.includes("Invalid email or password"))
+      throw new Error("no error text shown")
   })
 
   await step("register password mismatch shows error", async () => {
@@ -104,7 +123,8 @@ async function main() {
     await page.locator('button[type="submit"]').click()
     await wait(1200)
     const body = await page.locator("body").innerText()
-    if (!body.includes("Passwords do not match")) throw new Error("mismatch error not shown: " + body.slice(0, 200))
+    if (!body.includes("Passwords do not match"))
+      throw new Error("mismatch error not shown: " + body.slice(0, 200))
   })
 
   await step("register new user works and signs in", async () => {
@@ -117,7 +137,8 @@ async function main() {
     await page.waitForURL(`${BASE}/`, { timeout: 15000 })
     await wait(1000)
     const body = await page.locator("body").innerText()
-    if (!body.includes("QA Audit User")) throw new Error("signed-in user not shown")
+    if (!body.includes("QA Audit User"))
+      throw new Error("signed-in user not shown")
   })
 
   await step("sign out works", async () => {
@@ -127,7 +148,12 @@ async function main() {
   await step("login as demo lands on dashboard with seeded data", async () => {
     await login(page, DEMO.email, DEMO.password)
     const body = await page.locator("body").innerText()
-    for (const s of ["Your boards", "Today", "Assigned to you", "Getting Started"]) {
+    for (const s of [
+      "Your boards",
+      "Today",
+      "Assigned to you",
+      "Getting Started",
+    ]) {
       if (!body.includes(s)) throw new Error(`dashboard missing: ${s}`)
     }
   })
@@ -141,21 +167,24 @@ async function main() {
     if (!body.includes("New board")) throw new Error("New board button missing")
   })
 
-  let boardUrl = ""
-  await step("create new board redirects and shows 3 default columns", async () => {
-    await page.getByRole("button", { name: "New board" }).first().click()
-    await wait(500)
-    await page.locator("#board-title").fill("QA Audit Board")
-    await page.locator("#board-description").fill("Created by automated audit")
-    await page.getByRole("button", { name: "Create board" }).click()
-    await page.waitForURL(/\/boards\/[a-z0-9]+$/, { timeout: 15000 })
-    await wait(1500)
-    boardUrl = page.url()
-    const body = await page.locator("body").innerText()
-    for (const c of ["To Do", "In Progress", "Done"]) {
-      if (!body.includes(c)) throw new Error(`column ${c} missing`)
+  await step(
+    "create new board redirects and shows 3 default columns",
+    async () => {
+      await page.getByRole("button", { name: "New board" }).first().click()
+      await wait(500)
+      await page.locator("#board-title").fill("QA Audit Board")
+      await page
+        .locator("#board-description")
+        .fill("Created by automated audit")
+      await page.getByRole("button", { name: "Create board" }).click()
+      await page.waitForURL(/\/boards\/[a-z0-9]+$/, { timeout: 15000 })
+      await wait(1500)
+      const body = await page.locator("body").innerText()
+      for (const c of ["To Do", "In Progress", "Done"]) {
+        if (!body.includes(c)) throw new Error(`column ${c} missing`)
+      }
     }
-  })
+  )
 
   // ============ KANBAN / COLUMNS ============
   await step("add column appends New column", async () => {
@@ -207,13 +236,16 @@ async function main() {
     await page.mouse.up()
     await wait(1800)
     const body = await page.locator("body").innerText()
-    if (!body.includes("QA Drag Task")) throw new Error("task disappeared during drag")
+    if (!body.includes("QA Drag Task"))
+      throw new Error("task disappeared during drag")
     await page.reload({ waitUntil: "networkidle" })
     await wait(1200)
     const doneCol = column(page, "Done")
     const todoCol = column(page, "To Do")
-    if ((await doneCol.getByText("QA Drag Task").count()) !== 1) throw new Error("task not in Done after reload")
-    if ((await todoCol.getByText("QA Drag Task").count()) !== 0) throw new Error("task still in To Do after reload")
+    if ((await doneCol.getByText("QA Drag Task").count()) !== 1)
+      throw new Error("task not in Done after reload")
+    if ((await todoCol.getByText("QA Drag Task").count()) !== 0)
+      throw new Error("task still in To Do after reload")
   })
 
   // ============ TASK DETAIL EDITING ============
@@ -232,7 +264,8 @@ async function main() {
     await wait(1200)
     await page.reload({ waitUntil: "networkidle" })
     await wait(1200)
-    if ((await column(page, "Done").getByText("QA Renamed Task").count()) !== 1) throw new Error("title not persisted")
+    if ((await column(page, "Done").getByText("QA Renamed Task").count()) !== 1)
+      throw new Error("title not persisted")
     await column(page, "Done").getByText("QA Renamed Task").click()
     await wait(800)
   })
@@ -247,16 +280,19 @@ async function main() {
     await column(page, "Done").getByText("QA Renamed Task").click()
     await wait(800)
     const val = await page.locator("#task-detail-description").inputValue()
-    if (val !== "Edited by audit - new description") throw new Error("description not saved")
+    if (val !== "Edited by audit - new description")
+      throw new Error("description not saved")
   })
 
   await step("change status via select", async () => {
     await selectByLabel(page, dlg(), "Status", "In Progress")
     await wait(1500)
     const doneCol = column(page, "Done")
-    if ((await doneCol.getByText("QA Renamed Task").count()) !== 0) throw new Error("task still in Done")
+    if ((await doneCol.getByText("QA Renamed Task").count()) !== 0)
+      throw new Error("task still in Done")
     const ipCol = column(page, "In Progress")
-    if ((await ipCol.getByText("QA Renamed Task").count()) !== 1) throw new Error("task not in In Progress")
+    if ((await ipCol.getByText("QA Renamed Task").count()) !== 1)
+      throw new Error("task not in In Progress")
   })
 
   await step("change priority via select", async () => {
@@ -267,15 +303,26 @@ async function main() {
   })
 
   await step("set + clear due date", async () => {
-    await page.getByRole("button", { name: /No due date/i }).first().click()
+    await page
+      .getByRole("button", { name: /No due date/i })
+      .first()
+      .click()
     await wait(600)
-    const day = page.locator('[data-slot="calendar"] button:not([disabled])').nth(10)
+    const day = page
+      .locator('[data-slot="calendar"] button:not([disabled])')
+      .nth(10)
     await day.click()
     await wait(1000)
-    if ((await page.getByRole("button", { name: /No due date/i }).count()) !== 0) throw new Error("due date not set")
+    if (
+      (await page.getByRole("button", { name: /No due date/i }).count()) !== 0
+    )
+      throw new Error("due date not set")
     await page.getByRole("button", { name: "Clear due date" }).click()
     await wait(1000)
-    if ((await page.getByRole("button", { name: /No due date/i }).count()) !== 1) throw new Error("due date not cleared")
+    if (
+      (await page.getByRole("button", { name: /No due date/i }).count()) !== 1
+    )
+      throw new Error("due date not cleared")
     await dlg().locator("h4", { hasText: "Comments" }).click()
     await wait(500)
   })
@@ -295,15 +342,19 @@ async function main() {
   })
 
   await step("add comment + delete comment", async () => {
-    await page.getByPlaceholder("Add a comment…").fill("A comment from the audit")
+    await page
+      .getByPlaceholder("Add a comment…")
+      .fill("A comment from the audit")
     await page.getByRole("button", { name: "Comment" }).click()
     await wait(1500)
     const body = await page.locator("body").innerText()
-    if (!body.includes("A comment from the audit")) throw new Error("comment not added")
+    if (!body.includes("A comment from the audit"))
+      throw new Error("comment not added")
     await dlg().getByRole("button", { name: "Delete", exact: true }).click()
     await wait(1500)
     const after = await page.locator("body").innerText()
-    if (after.includes("A comment from the audit")) throw new Error("comment not deleted")
+    if (after.includes("A comment from the audit"))
+      throw new Error("comment not deleted")
   })
 
   // close dialog
@@ -315,22 +366,42 @@ async function main() {
     const filterInput = page.getByPlaceholder("Filter tasks…")
     await filterInput.fill("zzznomatch")
     await wait(800)
-    const hidden = await column(page, "In Progress").getByText("QA Renamed Task").count()
+    const hidden = await column(page, "In Progress")
+      .getByText("QA Renamed Task")
+      .count()
     if (hidden !== 0) throw new Error("task still visible when filtered out")
     await page.getByRole("button", { name: "Clear" }).click()
     await wait(800)
-    if ((await column(page, "In Progress").getByText("QA Renamed Task").count()) !== 1) throw new Error("task not restored after clear")
+    if (
+      (await column(page, "In Progress")
+        .getByText("QA Renamed Task")
+        .count()) !== 1
+    )
+      throw new Error("task not restored after clear")
   })
 
   await step("filters: status select filters tasks", async () => {
     await page.locator('[data-slot="select-trigger"]').nth(0).click()
     await wait(400)
-    await page.locator('[data-slot="select-item"]').filter({ hasText: "Done" }).click()
+    await page
+      .locator('[data-slot="select-item"]')
+      .filter({ hasText: "Done" })
+      .click()
     await wait(800)
-    if ((await column(page, "In Progress").getByText("QA Renamed Task").count()) !== 0) throw new Error("task shown for wrong status")
+    if (
+      (await column(page, "In Progress")
+        .getByText("QA Renamed Task")
+        .count()) !== 0
+    )
+      throw new Error("task shown for wrong status")
     await page.getByRole("button", { name: "Clear" }).click()
     await wait(800)
-    if ((await column(page, "In Progress").getByText("QA Renamed Task").count()) !== 1) throw new Error("task not restored")
+    if (
+      (await column(page, "In Progress")
+        .getByText("QA Renamed Task")
+        .count()) !== 1
+    )
+      throw new Error("task not restored")
   })
 
   // ============ TASK DELETE ============
@@ -364,24 +435,37 @@ async function main() {
     await page.getByRole("button", { name: "Invite" }).click()
     await wait(1500)
     const body = await page.locator("body").innerText()
-    if (!body.includes("QA Audit User")) throw new Error("invited member not listed")
+    if (!body.includes("QA Audit User"))
+      throw new Error("invited member not listed")
   })
 
   await step("change member role", async () => {
-    const row = page.locator('[data-slot="dialog-content"]').locator("div.rounded-lg").filter({ hasText: "QA Audit User" }).first()
+    const row = page
+      .locator('[data-slot="dialog-content"]')
+      .locator("div.rounded-lg")
+      .filter({ hasText: "QA Audit User" })
+      .first()
     const sel = row.locator('[data-slot="select-trigger"]')
     const current = (await sel.innerText()).trim().toUpperCase()
     const target = current === "ADMIN" ? "MEMBER" : "ADMIN"
     await sel.click()
     await wait(400)
-    await page.locator('[data-slot="select-item"]').filter({ hasText: target }).click()
+    await page
+      .locator('[data-slot="select-item"]')
+      .filter({ hasText: target })
+      .click()
     await wait(1200)
-    const txt = (await row.locator('[data-slot="select-trigger"]').innerText()).trim().toUpperCase()
+    const txt = (await row.locator('[data-slot="select-trigger"]').innerText())
+      .trim()
+      .toUpperCase()
     if (txt !== target) throw new Error(`role not changed to ${target}`)
   })
 
   await step("remove member", async () => {
-    const remove = page.locator('[data-slot="dialog-content"] button').filter({ has: page.locator("svg.lucide-trash2") }).first()
+    const remove = page
+      .locator('[data-slot="dialog-content"] button')
+      .filter({ has: page.locator("svg.lucide-trash2") })
+      .first()
     await remove.click()
     await wait(1500)
     const body = await page.locator("body").innerText()
@@ -400,7 +484,8 @@ async function main() {
     await page.getByRole("button", { name: "Save" }).click()
     await wait(1500)
     const body = await page.locator("body").innerText()
-    if (!body.includes("QA Audit Board v2")) throw new Error("board title not updated")
+    if (!body.includes("QA Audit Board v2"))
+      throw new Error("board title not updated")
   })
 
   await step("delete board", async () => {
@@ -427,7 +512,8 @@ async function main() {
     if (items === 0) throw new Error("no search results")
     await page.locator('[data-slot="command-item"]').first().click()
     await wait(1500)
-    if (!page.url().includes("/boards/")) throw new Error("did not navigate to board")
+    if (!page.url().includes("/boards/"))
+      throw new Error("did not navigate to board")
   })
 
   // ============ THEME ============
@@ -435,9 +521,14 @@ async function main() {
     await page.goto(`${BASE}/boards`, { waitUntil: "networkidle" })
     await wait(800)
     const before = await page.locator("html").getAttribute("class")
-    await page.locator("aside [data-slot='dropdown-menu-trigger']").first().click()
+    await page
+      .locator("aside [data-slot='dropdown-menu-trigger']")
+      .first()
+      .click()
     await wait(500)
-    const item = await page.getByRole("menuitem", { name: /Light mode|Dark mode/ }).count()
+    const item = await page
+      .getByRole("menuitem", { name: /Light mode|Dark mode/ })
+      .count()
     if (item === 0) throw new Error("theme menu item missing")
     await page.getByRole("menuitem", { name: /Light mode|Dark mode/ }).click()
     await wait(700)
@@ -466,15 +557,21 @@ async function main() {
   await step("mobile bottom nav + account sheet works", async () => {
     const mob = await ctx.newPage()
     mob.setViewportSize({ width: 390, height: 844 })
-    mob.on("pageerror", (e) => errs.push("[M][PAGEERROR] " + (e.stack || e.message).slice(0, 300)))
+    mob.on("pageerror", (e) =>
+      errs.push("[M][PAGEERROR] " + (e.stack || e.message).slice(0, 300))
+    )
     await mob.goto(`${BASE}/`, { waitUntil: "networkidle" })
     await wait(1000)
     const body = await mob.locator("body").innerText()
     if (!body.includes("Home")) throw new Error("bottom nav missing")
     await mob.getByRole("button", { name: /account/i }).click()
     await wait(700)
-    const sheetText = await mob.locator('[data-slot="sheet-content"]').innerText().catch(() => "")
-    if (!sheetText.includes("Light mode") && !sheetText.includes("Dark mode")) throw new Error("theme toggle missing in sheet")
+    const sheetText = await mob
+      .locator('[data-slot="sheet-content"]')
+      .innerText()
+      .catch(() => "")
+    if (!sheetText.includes("Light mode") && !sheetText.includes("Dark mode"))
+      throw new Error("theme toggle missing in sheet")
     await mob.close()
   })
 

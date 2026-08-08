@@ -2,14 +2,20 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Columns3, Settings, LogOut, Moon, Sun } from "lucide-react"
+import { LogOut, Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import { cn } from "@/lib/utils"
+import { cn, initials } from "@/lib/utils"
+import { navItems } from "@/lib/nav"
 import { signOutAction } from "@/actions/auth-actions"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,12 +27,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { SidebarUser } from "@/components/layout/sidebar"
 
-const navItems = [
-  { href: "/", label: "Home", icon: LayoutDashboard },
-  { href: "/boards", label: "Boards", icon: Columns3 },
-  { href: "/settings", label: "Settings", icon: Settings },
-]
-
 export function MobileNav({ user }: { user: SidebarUser }) {
   const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
@@ -36,7 +36,9 @@ export function MobileNav({ user }: { user: SidebarUser }) {
       <div className="mx-auto flex h-16 max-w-lg items-center justify-around">
         {navItems.map((item) => {
           const active =
-            item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
+            item.href === "/"
+              ? pathname === "/"
+              : pathname.startsWith(item.href)
           return (
             <Link
               key={item.href}
@@ -47,7 +49,7 @@ export function MobileNav({ user }: { user: SidebarUser }) {
               )}
             >
               <item.icon className="size-5" />
-              {item.label}
+              {item.shortLabel}
             </Link>
           )
         })}
@@ -62,7 +64,10 @@ export function MobileNav({ user }: { user: SidebarUser }) {
             }
           >
             <Avatar className="size-5">
-              <AvatarImage src={user.image ?? undefined} alt={user.name ?? ""} />
+              <AvatarImage
+                src={user.image ?? undefined}
+                alt={user.name ?? ""}
+              />
               <AvatarFallback className="text-[8px]">
                 {(user.name || "U").slice(0, 1).toUpperCase()}
               </AvatarFallback>
@@ -73,9 +78,12 @@ export function MobileNav({ user }: { user: SidebarUser }) {
             <SheetTitle className="sr-only">Account</SheetTitle>
             <div className="mb-2 flex items-center gap-3 px-2 pt-2">
               <Avatar className="size-10">
-                <AvatarImage src={user.image ?? undefined} alt={user.name ?? ""} />
+                <AvatarImage
+                  src={user.image ?? undefined}
+                  alt={user.name ?? ""}
+                />
                 <AvatarFallback>
-                  {(user.name || user.email || "U").slice(0, 2).toUpperCase()}
+                  {initials(user.name, user.email)}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0">

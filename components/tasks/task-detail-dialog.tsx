@@ -4,14 +4,31 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { useQueryClient } from "@tanstack/react-query"
 
-import { addTagAction, deleteTaskAction, removeTagAction, updateTaskAction } from "@/actions/task-actions"
+import {
+  addTagAction,
+  deleteTaskAction,
+  removeTagAction,
+  updateTaskAction,
+} from "@/actions/task-actions"
 import { useBoard } from "@/hooks/use-tasks"
 import { useBoardStore } from "@/stores/board-store"
-import type { BoardDetailDTO, MemberDTO, TaskPriority, TaskStatus } from "@/lib/types"
-import type { TaskValues } from "@/lib/zod-schemas"
+import type {
+  BoardDetailDTO,
+  ColumnDTO,
+  MemberDTO,
+  TaskDTO,
+  TaskPriority,
+  TaskStatus,
+} from "@/lib/types"
+import type { TaskPatchValues } from "@/lib/zod-schemas"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -40,74 +57,160 @@ export function TaskDetailDialog({
 }) {
   const selectedTaskId = useBoardStore((state) => state.selectedTaskId)
   const closeTask = useBoardStore((state) => state.closeTask)
-  const queryClient = useQueryClient()
   const { data } = useBoard(boardId, board)
 
   const task = selectedTaskId
-    ? data.columns.flatMap((column) => column.tasks).find((t) => t.id === selectedTaskId)
+    ? data.columns
+        .flatMap((column) => column.tasks)
+        .find((t) => t.id === selectedTaskId)
     : undefined
 
-  const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
+  return (
+    <Dialog
+      open={!!selectedTaskId}
+      onOpenChange={(open) => {
+        if (!open) closeTask()
+      }}
+    >
+      {task && (
+        <DialogContent
+          key={task.id}
+          className="bg-card/95 backdrop-blur-xl sm:max-w-2xl"
+        >
+          <TaskDetailContent
+            task={task}
+            columns={data.columns}
+            members={members}
+            currentUserId={currentUserId}
+            canEdit={canEdit}
+            onDeleted={closeTask}
+          />
+        </DialogContent>
+      )}
+    </Dialog>
+  )
+}
+
+function TaskDetailContent({
+  task,
+  columns,
+  members,
+  currentUserId,
+  canEdit,
+  onDeleted,
+}: {
+  task: TaskDTO
+  columns: ColumnDTO[]
+  members: MemberDTO[]
+  currentUserId: string
+  canEdit: boolean
+  onDeleted: () => void
+}) {
+  const queryClient = useQueryClient()
+  const [title, setTitle] = useState(task.title)
+  const [description, setDescription] = useState(task.description ?? "")
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [syncedTaskId, setSyncedTaskId] = useState<string | null>(null)
-
-  if (task && task.id !== syncedTaskId) {
-    setSyncedTaskId(task.id)
-    setTitle(task.title)
-    setDescription(task.description ?? "")
-  }
-
-  if (!task) return null
-  const currentTask = task
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: ["boards", boardId] })
+    queryClient.invalidateQueries({ queryKey: ["boards", task.boardId] })
   }
 
-  async function updateTask(overrides: Partial<TaskValues>) {
-    const nextOverrides = overrides
-    if (overrides.status && overrides.status !== currentTask.status) {
-      const targetColumn = board.columns.find(
-        (column) =>
-          statusFromColumnTitle(column.title) === overrides.status
-      )
-      if (targetColumn) {
-        nextOverrides.columnId = targetColumn.id
+  function applyTaskPatch(patch: TaskPatchValues) {
+    queryClient.setQueryData<BoardDetailDTO>(
+      ["boards", task.boardId],
+      (old) => {
+        if (!old) return old
+        const moved = patch.status && patch.status !== task.status
+        const targetColumn = moved
+          ? columns.find(
+              (column) => statusFromColumnTitle(column.title) === patch.status
+            )
+          : undefined
+        if (targetColumn) {
+          const source = old.columns.find((column) =>
+            column.tasks.some((t) => t.id === task.id)
+          )
+          if (!source) return old
+          const updated: TaskDTO = {
+            ...task,
+            ...patch,
+            status: patch.status as TaskStatus,
+            columnId: targetColumn.id,
+            order: Math.max(-1, ...targetColumn.tasks.map((t) => t.order)) + 1,
+          }
+          return {
+            ...old,
+            columns: old.columns.map((column) => {
+              if (column.id === source.id) {
+                return {
+                  ...column,
+                  tasks: column.tasks.filter((t) => t.id !== task.id),
+                }
+              }
+              if (column.id === targetColumn.id) {
+                return { ...column, tasks: [...column.tasks, updated] }
+              }
+              return column
+            }),
+          }
+        }
+        return {
+          ...old,
+          columns: old.columns.map((column) => ({
+            ...column,
+            tasks: column.tasks.map((t) => {
+              if (t.id !== task.id) return t
+              const assignee =
+                patch.assigneeId !== undefined
+                  ? patch.assigneeId
+                    ? (members.find((m) => m.user.id === patch.assigneeId)
+                        ?.user ?? null)
+                    : null
+                  : t.assignee
+              return { ...t, ...patch, assignee } as TaskDTO
+            }),
+          })),
+        }
       }
-    }
-    const result = await updateTaskAction(currentTask.id, {
-      title,
-      description: description || "",
-      status: currentTask.status,
-      priority: currentTask.priority,
-      dueDate: currentTask.dueDate,
-      assigneeId: currentTask.assigneeId,
-      columnId: currentTask.columnId,
-      ...nextOverrides,
-    })
+    )
+  }
+
+  async function updateTask(patch: TaskPatchValues) {
+    const result = await updateTaskAction(task.id, patch)
     if (result.error) {
       toast.error(result.error)
       return
     }
     toast.success("Task updated")
+    applyTaskPatch(patch)
     invalidate()
   }
 
   async function deleteTask() {
-    const result = await deleteTaskAction(currentTask.id)
+    const result = await deleteTaskAction(task.id)
     if (result.error) {
       toast.error(result.error)
       return
     }
     toast.success("Task deleted")
     setDeleteOpen(false)
-    closeTask()
+    queryClient.setQueryData<BoardDetailDTO>(["boards", task.boardId], (old) =>
+      old
+        ? {
+            ...old,
+            columns: old.columns.map((column) => ({
+              ...column,
+              tasks: column.tasks.filter((t) => t.id !== task.id),
+            })),
+          }
+        : old
+    )
+    onDeleted()
     invalidate()
   }
 
   async function handleAddTag(name: string, color: string) {
-    const result = await addTagAction(currentTask.id, name, color)
+    const result = await addTagAction(task.id, name, color)
     if (result.error) {
       toast.error(result.error)
       return
@@ -125,128 +228,122 @@ export function TaskDetailDialog({
   }
 
   return (
-    <Dialog
-      open={!!selectedTaskId}
-      onOpenChange={(open) => {
-        if (!open) closeTask()
-      }}
-    >
-      <DialogContent className="sm:max-w-2xl bg-card/95 backdrop-blur-xl">
-        <DialogHeader className="space-y-3 pr-10">
-          <DialogTitle
-            render={
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onBlur={() => {
-                  if (title !== currentTask.title) updateTask({ title })
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") e.currentTarget.blur()
-                }}
-                disabled={!canEdit}
-                className="border-transparent px-0 font-heading text-sm font-medium shadow-none focus-visible:border-input focus-visible:bg-card"
-              />
-            }
-          />
-        </DialogHeader>
+    <>
+      <DialogHeader className="space-y-3 pr-10">
+        <DialogTitle
+          render={
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => {
+                if (title !== task.title) updateTask({ title })
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur()
+              }}
+              disabled={!canEdit}
+              className="border-transparent px-0 font-heading text-sm font-medium shadow-none focus-visible:border-input focus-visible:bg-card"
+            />
+          }
+        />
+      </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-[1fr_280px]">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="task-detail-description">Description</Label>
-              <Textarea
-                id="task-detail-description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                onBlur={() => {
-                  if (description !== (currentTask.description ?? "")) {
-                    updateTask({ description })
-                  }
-                }}
-                disabled={!canEdit}
-                placeholder="Add a more detailed description…"
-                className="min-h-28"
-              />
-            </div>
-            <TaskComments
-              taskId={currentTask.id}
-              boardId={boardId}
-              currentUserId={currentUserId}
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-[1fr_280px]">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="task-detail-description">Description</Label>
+            <Textarea
+              id="task-detail-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              onBlur={() => {
+                if (description !== (task.description ?? "")) {
+                  updateTask({ description })
+                }
+              }}
+              disabled={!canEdit}
+              placeholder="Add a more detailed description…"
+              className="min-h-28"
             />
           </div>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <StatusSelect
-                value={currentTask.status}
-                onChange={(value: TaskStatus) => {
-                  if (value !== currentTask.status) updateTask({ status: value })
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Priority</Label>
-              <PrioritySelect
-                value={currentTask.priority}
-                onChange={(value: TaskPriority) => {
-                  if (value !== currentTask.priority) updateTask({ priority: value })
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Assignee</Label>
-              <AssigneeSelect
-                value={currentTask.assigneeId}
-                members={members}
-                onChange={(value) => {
-                  if (value !== currentTask.assigneeId) updateTask({ assigneeId: value })
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Due date</Label>
-              <DueDatePicker
-                value={currentTask.dueDate}
-                onChange={(value) => {
-                  if (value !== currentTask.dueDate) updateTask({ dueDate: value })
-                }}
-              />
-            </div>
-            {canEdit && (
-              <div className="space-y-2">
-                <Label>Tags</Label>
-                <TagsEditor
-                  tags={currentTask.tags}
-                  onAdd={handleAddTag}
-                  onRemove={handleRemoveTag}
-                />
-              </div>
-            )}
-            {canEdit && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => setDeleteOpen(true)}
-                >
-                  Delete task
-                </Button>
-                <ConfirmDialog
-                  open={deleteOpen}
-                  onOpenChange={setDeleteOpen}
-                  title="Delete this task?"
-                  description="This action cannot be undone."
-                  confirmLabel="Delete"
-                  onConfirm={deleteTask}
-                />
-              </>
-            )}
-          </div>
+          <TaskComments
+            taskId={task.id}
+            boardId={task.boardId}
+            currentUserId={currentUserId}
+          />
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <StatusSelect
+              value={task.status}
+              onChange={(value: TaskStatus) => {
+                if (value !== task.status) updateTask({ status: value })
+              }}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Priority</Label>
+            <PrioritySelect
+              value={task.priority}
+              onChange={(value: TaskPriority) => {
+                if (value !== task.priority) updateTask({ priority: value })
+              }}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Assignee</Label>
+            <AssigneeSelect
+              value={task.assigneeId}
+              members={members}
+              assignee={task.assignee}
+              onChange={(value) => {
+                if (value !== task.assigneeId) updateTask({ assigneeId: value })
+              }}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Due date</Label>
+            <DueDatePicker
+              value={task.dueDate}
+              onChange={(value) => {
+                if (value !== task.dueDate) updateTask({ dueDate: value })
+              }}
+            />
+          </div>
+          {canEdit && (
+            <div className="space-y-2">
+              <Label>Tags</Label>
+              <TagsEditor
+                tags={task.tags}
+                onAdd={handleAddTag}
+                onRemove={handleRemoveTag}
+              />
+            </div>
+          )}
+          {canEdit && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setDeleteOpen(true)}
+              >
+                Delete task
+              </Button>
+              <ConfirmDialog
+                open={deleteOpen}
+                onOpenChange={setDeleteOpen}
+                title="Delete this task?"
+                description="This action cannot be undone."
+                confirmLabel="Delete"
+                onConfirm={deleteTask}
+              />
+            </>
+          )}
+        </div>
+      </div>
+    </>
   )
 }

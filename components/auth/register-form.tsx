@@ -43,7 +43,6 @@ export function RegisterForm({ providers }: { providers: OAuthProvider[] }) {
       return
     }
     router.push("/")
-    router.refresh()
   }
 
   return (

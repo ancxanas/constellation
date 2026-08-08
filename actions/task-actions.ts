@@ -1,25 +1,31 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
-
 import { prisma } from "@/lib/prisma"
+import type { Prisma, TaskStatus } from "@prisma/client"
 import { requireUser } from "@/lib/session"
 import { getBoardRole } from "@/lib/permissions"
 import {
   commentSchema,
   tagSchema,
+  taskPatchSchema,
   taskSchema,
+  type TaskPatchValues,
   type TaskValues,
 } from "@/lib/zod-schemas"
 import type { ActionResponse } from "@/lib/types"
 import { statusFromColumnTitle } from "@/lib/status-columns"
 
-async function taskBoardId(taskId: string): Promise<string | null> {
+async function taskBoardId(taskId: string): Promise<{
+  boardId: string
+  columnId: string | null
+  status: TaskStatus
+} | null> {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { boardId: true },
+    select: { boardId: true, columnId: true, status: true },
   })
-  return task?.boardId ?? null
+  if (!task) return null
+  return { boardId: task.boardId, columnId: task.columnId, status: task.status }
 }
 
 export async function createTaskAction(
@@ -35,8 +41,15 @@ export async function createTaskAction(
     return { error: parsed.error.issues[0]?.message ?? "Invalid task" }
   }
 
-  const { title, description, status, priority, dueDate, assigneeId, columnId } =
-    parsed.data
+  const {
+    title,
+    description,
+    status,
+    priority,
+    dueDate,
+    assigneeId,
+    columnId,
+  } = parsed.data
 
   const column = await prisma.column.findFirst({
     where: { id: columnId, boardId },
@@ -63,62 +76,84 @@ export async function createTaskAction(
     },
   })
 
-  revalidatePath(`/boards/${boardId}`)
   return {}
 }
 
 export async function updateTaskAction(
   taskId: string,
-  values: TaskValues
+  patch: TaskPatchValues
 ): Promise<ActionResponse> {
   const user = await requireUser()
-  const boardId = await taskBoardId(taskId)
-  if (!boardId) return { error: "Task not found" }
+  const scope = await taskBoardId(taskId)
+  if (!scope) return { error: "Task not found" }
+  const { boardId } = scope
 
   const role = await getBoardRole(user.id, boardId)
   if (!role) return { error: "You are not a member of this board" }
 
-  const parsed = taskSchema.safeParse(values)
+  const parsed = taskPatchSchema.safeParse(patch)
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid task" }
   }
+  const values = parsed.data
 
-  const { title, description, status, priority, dueDate, assigneeId, columnId } =
-    parsed.data
+  const data: Prisma.TaskUncheckedUpdateInput = {}
+  if (values.title !== undefined) data.title = values.title
+  if (values.description !== undefined) {
+    data.description = values.description?.trim() || null
+  }
+  if (values.status !== undefined) data.status = values.status
+  if (values.priority !== undefined) data.priority = values.priority
+  if (values.dueDate !== undefined) {
+    data.dueDate = values.dueDate ? new Date(values.dueDate) : null
+  }
+  if (values.assigneeId !== undefined) {
+    data.assigneeId = values.assigneeId || null
+  }
 
-  const column = await prisma.column.findFirst({
-    where: { id: columnId, boardId },
-    select: { id: true },
-  })
-  if (!column) return { error: "Invalid column" }
+  let targetColumnId = values.columnId
+  if (values.columnId !== undefined) {
+    const column = await prisma.column.findFirst({
+      where: { id: values.columnId, boardId },
+      select: { id: true },
+    })
+    if (!column) return { error: "Invalid column" }
+  } else if (values.status !== undefined && values.status !== scope.status) {
+    const columns = await prisma.column.findMany({
+      where: { boardId },
+      select: { id: true, title: true },
+    })
+    const target = columns.find(
+      (column) => statusFromColumnTitle(column.title) === values.status
+    )
+    if (target) targetColumnId = target.id
+  }
 
-  await prisma.task.update({
-    where: { id: taskId },
-    data: {
-      title,
-      description: description?.trim() || null,
-      status,
-      priority,
-      dueDate: dueDate ? new Date(dueDate) : null,
-      assigneeId: assigneeId || null,
-      columnId,
-    },
-  })
+  if (targetColumnId && targetColumnId !== scope.columnId) {
+    data.columnId = targetColumnId
+    const maxOrder = await prisma.task.aggregate({
+      where: { columnId: targetColumnId },
+      _max: { order: true },
+    })
+    data.order = (maxOrder._max.order ?? -1) + 1
+  }
 
-  revalidatePath(`/boards/${boardId}`)
+  await prisma.task.update({ where: { id: taskId }, data })
+
   return {}
 }
 
-export async function deleteTaskAction(taskId: string): Promise<ActionResponse> {
+export async function deleteTaskAction(
+  taskId: string
+): Promise<ActionResponse> {
   const user = await requireUser()
-  const boardId = await taskBoardId(taskId)
-  if (!boardId) return { error: "Task not found" }
+  const scope = await taskBoardId(taskId)
+  if (!scope) return { error: "Task not found" }
 
-  const role = await getBoardRole(user.id, boardId)
+  const role = await getBoardRole(user.id, scope.boardId)
   if (!role) return { error: "You are not a member of this board" }
 
   await prisma.task.delete({ where: { id: taskId } })
-  revalidatePath(`/boards/${boardId}`)
   return {}
 }
 
@@ -136,16 +171,15 @@ export async function reorderTasksAction(input: {
       select: { id: true, title: true },
     })
     const columnStatus = new Map(
-      columns.map((column) => [
-        column.id,
-        statusFromColumnTitle(column.title),
-      ])
+      columns.map((column) => [column.id, statusFromColumnTitle(column.title)])
     )
     const tasks = await prisma.task.findMany({
       where: { id: { in: input.updates.map((update) => update.taskId) } },
       select: { id: true, columnId: true },
     })
-    const currentColumns = new Map(tasks.map((task) => [task.id, task.columnId]))
+    const currentColumns = new Map(
+      tasks.map((task) => [task.id, task.columnId])
+    )
 
     await prisma.$transaction(
       input.updates.map((update) => {
@@ -165,7 +199,6 @@ export async function reorderTasksAction(input: {
     )
   }
 
-  revalidatePath(`/boards/${input.boardId}`)
   return {}
 }
 
@@ -174,10 +207,10 @@ export async function addCommentAction(
   content: string
 ): Promise<ActionResponse> {
   const user = await requireUser()
-  const boardId = await taskBoardId(taskId)
-  if (!boardId) return { error: "Task not found" }
+  const scope = await taskBoardId(taskId)
+  if (!scope) return { error: "Task not found" }
 
-  const role = await getBoardRole(user.id, boardId)
+  const role = await getBoardRole(user.id, scope.boardId)
   if (!role) return { error: "You are not a member of this board" }
 
   const parsed = commentSchema.safeParse({ content })
@@ -189,7 +222,6 @@ export async function addCommentAction(
     data: { taskId, authorId: user.id, content: parsed.data.content },
   })
 
-  revalidatePath(`/boards/${boardId}`)
   return {}
 }
 
@@ -210,7 +242,6 @@ export async function deleteCommentAction(
   }
 
   await prisma.comment.delete({ where: { id: commentId } })
-  revalidatePath(`/boards/${comment.task.boardId}`)
   return {}
 }
 
@@ -220,10 +251,10 @@ export async function addTagAction(
   color: string
 ): Promise<ActionResponse> {
   const user = await requireUser()
-  const boardId = await taskBoardId(taskId)
-  if (!boardId) return { error: "Task not found" }
+  const scope = await taskBoardId(taskId)
+  if (!scope) return { error: "Task not found" }
 
-  const role = await getBoardRole(user.id, boardId)
+  const role = await getBoardRole(user.id, scope.boardId)
   if (!role) return { error: "You are not a member of this board" }
 
   const parsed = tagSchema.safeParse({ name, color })
@@ -235,7 +266,6 @@ export async function addTagAction(
     data: { taskId, name: parsed.data.name, color: parsed.data.color },
   })
 
-  revalidatePath(`/boards/${boardId}`)
   return {}
 }
 
@@ -251,6 +281,5 @@ export async function removeTagAction(tagId: string): Promise<ActionResponse> {
   if (!role) return { error: "You are not a member of this board" }
 
   await prisma.tag.delete({ where: { id: tagId } })
-  revalidatePath(`/boards/${tag.task.boardId}`)
   return {}
 }

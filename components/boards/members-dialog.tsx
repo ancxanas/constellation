@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Shield, Trash2, UserPlus } from "lucide-react"
+import { Shield, Trash2, UserPlus, Users } from "lucide-react"
 import { toast } from "sonner"
 import { useQueryClient } from "@tanstack/react-query"
 
@@ -11,6 +11,7 @@ import {
   updateMemberRoleAction,
 } from "@/actions/user-actions"
 import { inviteSchema } from "@/lib/zod-schemas"
+import { initials } from "@/lib/utils"
 import type { BoardRole, MemberDTO } from "@/lib/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -100,13 +101,13 @@ export function MembersDialog({
   }
 
   const sorted = [...members].sort(
-    (a, b) =>
-      memberOrder.indexOf(a.role) - memberOrder.indexOf(b.role)
+    (a, b) => memberOrder.indexOf(a.role) - memberOrder.indexOf(b.role)
   )
 
   return (
     <Dialog>
       <DialogTrigger render={<Button variant="ghost" size="icon-sm" />}>
+        <Users className="size-4" />
         <span className="sr-only">Members</span>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
@@ -156,9 +157,7 @@ export function MembersDialog({
                     alt={member.user.name ?? ""}
                   />
                   <AvatarFallback>
-                    {(member.user.name || member.user.email || "?")
-                      .slice(0, 2)
-                      .toUpperCase()}
+                    {initials(member.user.name, member.user.email)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
@@ -194,9 +193,7 @@ export function MembersDialog({
                   </Select>
                 ) : (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    {member.role === "OWNER" && (
-                      <Shield className="size-3.5" />
-                    )}
+                    {member.role === "OWNER" && <Shield className="size-3.5" />}
                     {roleLabels[member.role]}
                   </span>
                 )}

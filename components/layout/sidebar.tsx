@@ -2,18 +2,11 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  LayoutDashboard,
-  Sparkles,
-  Columns3,
-  Settings,
-  LogOut,
-  Moon,
-  Sun,
-} from "lucide-react"
+import { Sparkles, LogOut, Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 
-import { cn } from "@/lib/utils"
+import { cn, initials } from "@/lib/utils"
+import { navItems } from "@/lib/nav"
 import { signOutAction } from "@/actions/auth-actions"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -29,26 +22,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/boards", label: "Boards", icon: Columns3 },
-  { href: "/settings", label: "Settings", icon: Settings },
-]
-
 export type SidebarUser = {
   name?: string | null
   email?: string | null
   image?: string | null
-}
-
-function initials(name?: string | null, email?: string | null) {
-  const source = name || email || "?"
-  return source
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase()
 }
 
 export function SidebarNav() {
@@ -83,7 +60,7 @@ export function Sidebar({ user }: { user: SidebarUser }) {
   const { resolvedTheme, setTheme } = useTheme()
 
   return (
-    <aside className="glass fixed left-0 top-0 z-40 hidden h-svh w-64 flex-col border-r lg:flex">
+    <aside className="fixed top-0 left-0 z-40 hidden h-svh w-64 flex-col border-r glass lg:flex">
       <div className="flex h-16 items-center gap-2 px-6">
         <Sparkles className="size-6 text-primary" />
         <span className="text-lg font-bold tracking-tight">Constellation</span>
@@ -102,18 +79,21 @@ export function Sidebar({ user }: { user: SidebarUser }) {
               />
             }
           >
-              <Avatar className="size-8">
-                <AvatarImage src={user.image ?? undefined} alt={user.name ?? ""} />
-                <AvatarFallback>{initials(user.name, user.email)}</AvatarFallback>
-              </Avatar>
-              <span className="min-w-0 flex-1 text-left">
-                <span className="block truncate text-sm font-medium">
-                  {user.name || "User"}
-                </span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  {user.email}
-                </span>
+            <Avatar className="size-8">
+              <AvatarImage
+                src={user.image ?? undefined}
+                alt={user.name ?? ""}
+              />
+              <AvatarFallback>{initials(user.name, user.email)}</AvatarFallback>
+            </Avatar>
+            <span className="min-w-0 flex-1 text-left">
+              <span className="block truncate text-sm font-medium">
+                {user.name || "User"}
               </span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {user.email}
+              </span>
+            </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuGroup>
@@ -122,7 +102,11 @@ export function Sidebar({ user }: { user: SidebarUser }) {
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
             </DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
+            <DropdownMenuItem
+              onClick={() =>
+                setTheme(resolvedTheme === "dark" ? "light" : "dark")
+              }
+            >
               {resolvedTheme === "dark" ? (
                 <Sun className="size-4" />
               ) : (

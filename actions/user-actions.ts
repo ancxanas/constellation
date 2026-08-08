@@ -1,6 +1,5 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
 import type { BoardRole } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
@@ -25,7 +24,7 @@ export async function inviteMemberAction(
   }
 
   const target = await prisma.user.findUnique({
-    where: { email: parsed.data.email },
+    where: { email: parsed.data.email.trim().toLowerCase() },
     select: { id: true },
   })
   if (!target) return { error: "No user has that email" }
@@ -40,7 +39,6 @@ export async function inviteMemberAction(
     data: { boardId, userId: target.id, role: "MEMBER" },
   })
 
-  revalidatePath(`/boards/${boardId}`)
   return {}
 }
 
@@ -64,7 +62,6 @@ export async function removeMemberAction(
   }
 
   await prisma.boardMember.delete({ where: { id: memberId } })
-  revalidatePath(`/boards/${boardId}`)
   return {}
 }
 
@@ -91,6 +88,5 @@ export async function updateMemberRoleAction(
     data: { role: nextRole },
   })
 
-  revalidatePath(`/boards/${boardId}`)
   return {}
 }

@@ -6,6 +6,7 @@ import { endOfDay, format } from "date-fns"
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { getUserBoards } from "@/lib/queries"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -17,40 +18,29 @@ export default async function DashboardPage() {
   if (!session?.user) redirect("/login")
   const userId = session.user.id
 
-  const [boards, upcoming, todayTasks] = await Promise.all([
-    prisma.board.findMany({
-      where: { OR: [{ ownerId: userId }, { members: { some: { userId } } }] },
-      include: {
-        _count: { select: { tasks: true, members: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 4,
-    }),
+  const cutoff = endOfDay(new Date())
+  const [boards, tasks] = await Promise.all([
+    getUserBoards(userId, 4),
     prisma.task.findMany({
       where: {
         assigneeId: userId,
         status: { not: "DONE" },
-        dueDate: { gt: endOfDay(new Date()) },
+        dueDate: { not: null },
       },
       include: { board: { select: { id: true, title: true } } },
       orderBy: { dueDate: "asc" },
-      take: 6,
-    }),
-    prisma.task.findMany({
-      where: {
-        assigneeId: userId,
-        status: { not: "DONE" },
-        dueDate: { not: null, lte: endOfDay(new Date()) },
-      },
-      include: { board: { select: { id: true, title: true } } },
-      orderBy: { dueDate: "asc" },
-      take: 6,
+      take: 12,
     }),
   ])
+  const todayTasks = tasks.filter(
+    (task) => task.dueDate && task.dueDate <= cutoff
+  )
+  const upcoming = tasks.filter((task) => task.dueDate && task.dueDate > cutoff)
 
   const firstName = session.user.name?.split(" ")[0] || "there"
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
 
   return (
     <div className="space-y-8">
@@ -87,15 +77,15 @@ export default async function DashboardPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {boards.map((board) => (
               <Link key={board.id} href={`/boards/${board.id}`}>
-                <Card className="glass h-full transition-colors hover:border-primary/50">
+                <Card className="h-full glass transition-colors hover:border-primary/50">
                   <CardHeader>
                     <CardTitle className="line-clamp-1 text-base">
                       {board.title}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <span>{board._count.tasks} tasks</span>
-                    <span>{board._count.members} members</span>
+                    <span>{board.tasksCount} tasks</span>
+                    <span>{board.membersCount} members</span>
                   </CardContent>
                 </Card>
               </Link>
@@ -168,7 +158,7 @@ function TaskRow({
 }) {
   return (
     <Link href={`/boards/${boardId}`}>
-      <Card className="glass flex items-center gap-3 px-4 py-3 transition-colors hover:border-primary/50">
+      <Card className="flex items-center gap-3 glass px-4 py-3 transition-colors hover:border-primary/50">
         <CheckCircle2 className="size-4 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           {title}

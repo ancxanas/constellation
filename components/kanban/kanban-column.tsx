@@ -57,17 +57,18 @@ export function KanbanColumn({
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-semibold">
-            {column.title}
-          </span>
+          <span className="truncate text-sm font-semibold">{column.title}</span>
           <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
             {column.tasks.length}
           </span>
         </div>
         {canEdit && (
           <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" />}>
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon-sm" />}
+            >
               <MoreHorizontal className="size-4" />
+              <span className="sr-only">Column options</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
