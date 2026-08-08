@@ -38,6 +38,6 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const comments = await getTaskComments(taskId)
+  const comments = await getTaskComments(session.user.id, taskId)
   return NextResponse.json({ comments })
 }

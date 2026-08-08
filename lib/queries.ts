@@ -29,6 +29,15 @@ export async function getBoardDetail(
   userId: string,
   boardId: string
 ): Promise<BoardDetailDTO | null> {
+  const access = await prisma.board.findFirst({
+    where: {
+      id: boardId,
+      OR: [{ ownerId: userId }, { members: { some: { userId } } }],
+    },
+    select: { id: true },
+  })
+  if (!access) return null
+
   const board = await prisma.board.findUnique({
     where: { id: boardId },
     include: {
@@ -57,11 +66,6 @@ export async function getBoardDetail(
   })
 
   if (!board) return null
-
-  const isMember =
-    board.ownerId === userId ||
-    board.members.some((member) => member.userId === userId)
-  if (!isMember) return null
 
   return {
     id: board.id,
@@ -98,7 +102,28 @@ export async function getBoardDetail(
   }
 }
 
-export async function getTaskComments(taskId: string): Promise<CommentDTO[]> {
+export async function getTaskComments(
+  userId: string,
+  taskId: string
+): Promise<CommentDTO[]> {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: {
+      board: {
+        select: {
+          ownerId: true,
+          members: { select: { userId: true } },
+        },
+      },
+    },
+  })
+  if (!task) return []
+
+  const isMember =
+    task.board.ownerId === userId ||
+    task.board.members.some((member) => member.userId === userId)
+  if (!isMember) return []
+
   const comments = await prisma.comment.findMany({
     where: { taskId },
     include: {

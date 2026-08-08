@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Temporal } from "@js-temporal/polyfill"
 import { CalendarDays, Plus, X } from "lucide-react"
 import { format } from "date-fns"
 
@@ -83,6 +84,8 @@ export function PrioritySelect({
   )
 }
 
+const UNASSIGNED = "__unassigned__"
+
 export function AssigneeSelect({
   value,
   members,
@@ -105,12 +108,15 @@ export function AssigneeSelect({
     null
 
   return (
-    <Select value={value ?? ""} onValueChange={(v) => onChange(v || null)}>
+    <Select
+      value={value ?? UNASSIGNED}
+      onValueChange={(v) => onChange(v === UNASSIGNED ? null : v)}
+    >
       <SelectTrigger className="w-full">
         <SelectValue placeholder="Unassigned">{displayName}</SelectValue>
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="">Unassigned</SelectItem>
+        <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
         {members.map((member) => (
           <SelectItem key={member.id} value={member.user.id}>
             {member.user.name || member.user.email}
@@ -119,6 +125,15 @@ export function AssigneeSelect({
       </SelectContent>
     </Select>
   )
+}
+
+function toUTCDayStartISO(day: Date): string {
+  const plain = new Temporal.PlainDate(
+    day.getFullYear(),
+    day.getMonth() + 1,
+    day.getDate()
+  )
+  return `${plain.toString()}T00:00:00.000Z`
 }
 
 export function DueDatePicker({
@@ -144,7 +159,7 @@ export function DueDatePicker({
         <Calendar
           mode="single"
           selected={date ?? undefined}
-          onSelect={(day) => onChange(day ? day.toISOString() : null)}
+          onSelect={(day) => onChange(day ? toUTCDayStartISO(day) : null)}
         />
         <div className="border-t p-2">
           <Button

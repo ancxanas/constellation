@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react"
+import { ArrowRight, CheckCircle2 } from "lucide-react"
 import type { TaskPriority } from "@prisma/client"
 import { endOfDay, format } from "date-fns"
 
@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma"
 import { getUserBoards } from "@/lib/queries"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { EmptyState } from "@/components/shared/empty-state"
+import { BoardsEmptyState } from "@/components/boards/boards-empty-state"
 import { TaskPriorityBadge } from "@/components/tasks/task-priority-badge"
 import { TaskDueDate } from "@/components/tasks/task-due-date"
 
@@ -67,12 +67,7 @@ export default async function DashboardPage() {
         </div>
 
         {boards.length === 0 ? (
-          <EmptyState
-            icon={Sparkles}
-            title="No boards yet"
-            description="Create your first board to start organizing tasks across columns."
-            actionLabel="New board"
-          />
+          <BoardsEmptyState />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {boards.map((board) => (

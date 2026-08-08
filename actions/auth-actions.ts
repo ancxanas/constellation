@@ -1,6 +1,7 @@
 "use server"
 
 import bcrypt from "bcryptjs"
+import { Prisma } from "@prisma/client"
 import { signOut } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { registerSchema, type RegisterValues } from "@/lib/zod-schemas"
@@ -27,9 +28,19 @@ export async function registerAction(
   }
 
   const hashed = await bcrypt.hash(password, 10)
-  await prisma.user.create({
-    data: { name, email: normalizedEmail, password: hashed },
-  })
+  try {
+    await prisma.user.create({
+      data: { name, email: normalizedEmail, password: hashed },
+    })
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return { error: "An account with this email already exists" }
+    }
+    throw error
+  }
 
   return {}
 }
