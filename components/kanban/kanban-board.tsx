@@ -29,7 +29,8 @@ import {
 } from "@/actions/board-actions"
 import { reorderTasksAction } from "@/actions/task-actions"
 import { useBoardStore } from "@/stores/board-store"
-import type { ColumnDTO, TaskDTO } from "@/lib/types"
+import type { ColumnDTO, MemberDTO, TaskDTO } from "@/lib/types"
+import { BoardFilters, type TaskFilters } from "@/components/kanban/board-filters"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import {
@@ -58,18 +59,48 @@ function findTask(columns: ColumnDTO[], taskId: string) {
   return undefined
 }
 
+function taskMatches(task: TaskDTO, filters: TaskFilters) {
+  if (filters.status && task.status !== filters.status) return false
+  if (filters.priority && task.priority !== filters.priority) return false
+  if (filters.assigneeId && task.assigneeId !== filters.assigneeId) return false
+  const query = filters.query.trim().toLowerCase()
+  if (query) {
+    const inTitle = task.title.toLowerCase().includes(query)
+    const inDescription = (task.description ?? "")
+      .toLowerCase()
+      .includes(query)
+    if (!inTitle && !inDescription) return false
+  }
+  return true
+}
+
 export function KanbanBoard({
   boardId,
   initialColumns,
   canEdit,
+  members,
 }: {
   boardId: string
   initialColumns: ColumnDTO[]
   canEdit: boolean
+  members: MemberDTO[]
 }) {
   const queryClient = useQueryClient()
   const openNewTask = useBoardStore((state) => state.openNewTask)
   const openTask = useBoardStore((state) => state.openTask)
+
+  const [filters, setFilters] = useState<TaskFilters>({
+    status: null,
+    priority: null,
+    assigneeId: null,
+    query: "",
+  })
+  const filtersActive = !!(
+    filters.status ||
+    filters.priority ||
+    filters.assigneeId ||
+    filters.query.trim()
+  )
 
   const [dragColumns, setDragColumns] = useState<ColumnDTO[] | null>(null)
   const [activeTask, setActiveTask] = useState<TaskDTO | null>(null)
@@ -270,8 +301,20 @@ export function KanbanBoard({
     invalidate()
   }
 
+  const visibleColumns = filtersActive
+    ? columns.map((column) => ({
+        ...column,
+        tasks: column.tasks.filter((task) => taskMatches(task, filters)),
+      }))
+    : columns
+
   return (
     <div className="flex flex-col gap-4">
+      <BoardFilters
+        members={members}
+        value={filters}
+        onChange={setFilters}
+      />
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -285,15 +328,16 @@ export function KanbanBoard({
         }}
       >
         <SortableContext
-          items={columns.map((column) => `column:${column.id}`)}
+          items={visibleColumns.map((column) => `column:${column.id}`)}
           strategy={horizontalListSortingStrategy}
         >
           <div className="flex gap-3 overflow-x-auto pb-4">
-            {columns.map((column) => (
+            {visibleColumns.map((column) => (
               <KanbanColumn
                 key={column.id}
                 column={column}
                 canEdit={canEdit}
+                disabled={filtersActive}
                 onAddTask={(columnId) => openNewTask(columnId)}
                 onOpenTask={(taskId) => openTask(taskId)}
                 onRename={(columnId, title) => {

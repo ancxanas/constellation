@@ -12,9 +12,11 @@ import { TaskPriorityBadge } from "@/components/tasks/task-priority-badge"
 export function KanbanTaskCard({
   task,
   onClick,
+  disabled = false,
 }: {
   task: TaskDTO
   onClick: () => void
+  disabled?: boolean
 }) {
   const {
     attributes,
@@ -23,7 +25,11 @@ export function KanbanTaskCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: `task:${task.id}`, data: { type: "task" } })
+  } = useSortable({
+    id: `task:${task.id}`,
+    data: { type: "task" },
+    disabled,
+  })
 
   return (
     <div

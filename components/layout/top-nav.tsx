@@ -6,6 +6,7 @@ import { Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { SidebarNav } from "@/components/layout/sidebar"
+import { GlobalSearch } from "@/components/layout/global-search"
 import { cn } from "@/lib/utils"
 
 export function TopNav() {
@@ -38,6 +39,10 @@ export function TopNav() {
       <span className="text-sm font-medium text-muted-foreground lg:hidden">
         Constellation
       </span>
+
+      <div className="ml-auto">
+        <GlobalSearch />
+      </div>
     </header>
   )
 }

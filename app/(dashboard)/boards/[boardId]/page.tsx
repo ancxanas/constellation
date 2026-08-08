@@ -37,6 +37,7 @@ export default async function BoardPage({
           boardId={board.id}
           initialColumns={board.columns}
           canEdit={canEdit}
+          members={board.members}
         />
       </Suspense>
       <NewTaskDialog boardId={board.id} members={board.members} />

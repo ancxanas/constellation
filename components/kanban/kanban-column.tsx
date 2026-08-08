@@ -17,6 +17,7 @@ import { KanbanTaskCard } from "@/components/kanban/kanban-task-card"
 export function KanbanColumn({
   column,
   canEdit,
+  disabled = false,
   onAddTask,
   onOpenTask,
   onRename,
@@ -24,6 +25,7 @@ export function KanbanColumn({
 }: {
   column: ColumnDTO
   canEdit: boolean
+  disabled?: boolean
   onAddTask: (columnId: string) => void
   onOpenTask: (taskId: string) => void
   onRename: (columnId: string, title: string) => void
@@ -39,6 +41,7 @@ export function KanbanColumn({
   } = useSortable({
     id: `column:${column.id}`,
     data: { type: "column" },
+    disabled,
   })
 
   return (
@@ -90,6 +93,7 @@ export function KanbanColumn({
           <KanbanTaskCard
             key={task.id}
             task={task}
+            disabled={disabled}
             onClick={() => onOpenTask(task.id)}
           />
         ))}
