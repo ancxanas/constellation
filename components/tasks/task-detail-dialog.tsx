@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { TaskComments } from "@/components/tasks/task-comments"
+import { statusFromColumnTitle } from "@/lib/status-columns"
 import {
   AssigneeSelect,
   DueDatePicker,
@@ -65,6 +66,16 @@ export function TaskDetailDialog({
   }
 
   async function updateTask(overrides: Partial<TaskValues>) {
+    const nextOverrides = overrides
+    if (overrides.status && overrides.status !== currentTask.status) {
+      const targetColumn = board.columns.find(
+        (column) =>
+          statusFromColumnTitle(column.title) === overrides.status
+      )
+      if (targetColumn) {
+        nextOverrides.columnId = targetColumn.id
+      }
+    }
     const result = await updateTaskAction(currentTask.id, {
       title,
       description: description || "",
@@ -73,7 +84,7 @@ export function TaskDetailDialog({
       dueDate: currentTask.dueDate,
       assigneeId: currentTask.assigneeId,
       columnId: currentTask.columnId,
-      ...overrides,
+      ...nextOverrides,
     })
     if (result.error) {
       toast.error(result.error)
@@ -120,8 +131,8 @@ export function TaskDetailDialog({
         if (!open) closeTask()
       }}
     >
-      <DialogContent className="max-w-2xl bg-card/95 backdrop-blur-xl">
-        <DialogHeader className="space-y-3">
+      <DialogContent className="sm:max-w-2xl bg-card/95 backdrop-blur-xl">
+        <DialogHeader className="space-y-3 pr-10">
           <DialogTitle
             render={
               <Input

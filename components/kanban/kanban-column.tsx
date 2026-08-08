@@ -71,14 +71,14 @@ export function KanbanColumn({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
-                onSelect={() => onRename(column.id, column.title)}
+                onClick={() => onRename(column.id, column.title)}
               >
                 <Pencil className="size-4" />
                 Rename
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive"
-                onSelect={() => onDelete(column.id)}
+                onClick={() => onDelete(column.id)}
               >
                 <Trash2 className="size-4" />
                 Delete

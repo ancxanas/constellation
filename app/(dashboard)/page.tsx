@@ -66,9 +66,15 @@ export default async function DashboardPage() {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Your boards</h2>
-          <Button render={<Link href="/boards" />} variant="ghost" size="sm">
+          <Button
+            render={<Link href="/boards" />}
+            nativeButton={false}
+            variant="ghost"
+            size="sm"
+          >
             View all <ArrowRight className="size-3.5" />
-          </Button>        </div>
+          </Button>
+        </div>
 
         {boards.length === 0 ? (
           <EmptyState

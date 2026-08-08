@@ -140,14 +140,14 @@ export function BoardHeader({
                 <span className="sr-only">Board settings</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setEditOpen(true)}>
+                <DropdownMenuItem onClick={() => setEditOpen(true)}>
                   <Pencil className="size-4" />
                   Edit details
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive"
-                  onSelect={() => setDeleteOpen(true)}
+                  onClick={() => setDeleteOpen(true)}
                 >
                   <Trash2 className="size-4" />
                   Delete board

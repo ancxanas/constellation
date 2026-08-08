@@ -12,6 +12,7 @@ import {
   type TaskValues,
 } from "@/lib/zod-schemas"
 import type { ActionResponse } from "@/lib/types"
+import { statusFromColumnTitle } from "@/lib/status-columns"
 
 async function taskBoardId(taskId: string): Promise<string | null> {
   const task = await prisma.task.findUnique({
@@ -130,13 +131,37 @@ export async function reorderTasksAction(input: {
   if (!role) return { error: "You are not a member of this board" }
 
   if (input.updates.length > 0) {
+    const columns = await prisma.column.findMany({
+      where: { boardId: input.boardId },
+      select: { id: true, title: true },
+    })
+    const columnStatus = new Map(
+      columns.map((column) => [
+        column.id,
+        statusFromColumnTitle(column.title),
+      ])
+    )
+    const tasks = await prisma.task.findMany({
+      where: { id: { in: input.updates.map((update) => update.taskId) } },
+      select: { id: true, columnId: true },
+    })
+    const currentColumns = new Map(tasks.map((task) => [task.id, task.columnId]))
+
     await prisma.$transaction(
-      input.updates.map((update) =>
-        prisma.task.update({
+      input.updates.map((update) => {
+        const moved = currentColumns.get(update.taskId) !== update.columnId
+        const status = moved
+          ? (columnStatus.get(update.columnId) ?? undefined)
+          : undefined
+        return prisma.task.update({
           where: { id: update.taskId },
-          data: { columnId: update.columnId, order: update.order },
+          data: {
+            columnId: update.columnId,
+            order: update.order,
+            ...(status ? { status } : {}),
+          },
         })
-      )
+      })
     )
   }
 

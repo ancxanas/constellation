@@ -48,6 +48,7 @@ export async function GET(request: Request) {
     order: 0,
     columnId: task.columnId,
     boardId: task.boardId,
+    board: { id: task.board.id, title: task.board.title },
     assigneeId: task.assigneeId,
     assignee: task.assignee,
     tags: [],

@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -62,6 +63,7 @@ export function SidebarNav() {
           <Button
             key={item.href}
             render={<Link href={item.href} />}
+            nativeButton={false}
             variant={active ? "secondary" : "ghost"}
             className={cn(
               "w-full justify-start",
@@ -114,10 +116,12 @@ export function Sidebar({ user }: { user: SidebarUser }) {
               </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="truncate">
-              {user.email}
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="truncate">
+                {user.email}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+            </DropdownMenuGroup>
             <DropdownMenuItem onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
               {resolvedTheme === "dark" ? (
                 <Sun className="size-4" />

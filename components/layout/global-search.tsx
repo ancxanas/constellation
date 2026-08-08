@@ -55,7 +55,7 @@ export function GlobalSearch() {
     queryKey: ["search", debouncedQuery],
     queryFn: () => searchTasks(debouncedQuery),
     enabled: open && debouncedQuery.trim().length > 0,
-    initialData: [],
+    placeholderData: [],
   })
 
   function navigateToBoard(boardId: string) {
@@ -92,11 +92,11 @@ export function GlobalSearch() {
           onValueChange={setQuery}
         />
         <CommandList>
-          {results.length === 0 && debouncedQuery.trim() ? (
+          {results?.length === 0 && debouncedQuery.trim() ? (
             <CommandEmpty>No tasks found.</CommandEmpty>
           ) : (
             <CommandGroup heading="Tasks">
-              {results.map((task) => (
+              {results?.map((task) => (
                 <CommandItem
                   key={task.id}
                   onSelect={() => navigateToBoard(task.boardId)}

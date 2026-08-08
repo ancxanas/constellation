@@ -13,6 +13,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -103,8 +104,10 @@ export function MobileNav({ user }: { user: SidebarUser }) {
                 {resolvedTheme === "dark" ? "Light mode" : "Dark mode"}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="center" className="w-full">
-                <DropdownMenuLabel>Theme</DropdownMenuLabel>
-                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Theme</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                </DropdownMenuGroup>
                 <DropdownMenuItem onClick={() => setTheme("light")}>
                   <Sun className="size-4" /> Light
                 </DropdownMenuItem>

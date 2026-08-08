@@ -316,6 +316,7 @@ export function KanbanBoard({
         onChange={setFilters}
       />
       <DndContext
+        id="board-dnd-context"
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
